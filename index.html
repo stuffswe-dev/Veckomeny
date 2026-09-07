@@ -49,6 +49,26 @@
   samma variabler (t.ex. ikonerna i shim.js) precis som om de vore en fil.
 -->
 <script>
+  window.__appErrors = [];
+  function showFatalError(label, err) {
+    var msg = (err && (err.stack || err.message)) ? (err.stack || err.message) : String(err);
+    window.__appErrors.push(label + ': ' + msg);
+    var root = document.getElementById('root');
+    if (root) {
+      root.innerHTML =
+        '<div style="padding:24px;font-family:sans-serif;color:#8A6A22;white-space:pre-wrap">' +
+        'Appen kraschade vid körning (' + label + ').\n\n' +
+        'Kopiera texten nedan och skicka till Claude:\n\n' + msg + '</div>';
+    }
+  }
+  window.addEventListener('error', function (e) {
+    showFatalError('runtime error', e.error || e.message);
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    showFatalError('unhandled promise rejection', e.reason);
+  });
+</script>
+<script>
   (async () => {
     try {
       if (typeof React === 'undefined' || typeof ReactDOM === 'undefined' || typeof Babel === 'undefined') {
