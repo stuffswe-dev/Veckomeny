@@ -245,6 +245,10 @@ function MealPlanner() {
   const [draftIngredientsText, setDraftIngredientsText] = useState('');
   const [draftFriday, setDraftFriday] = useState(false);
   const [draftSoup, setDraftSoup] = useState(false);
+  const [draftSourceUrl, setDraftSourceUrl] = useState('');
+  const [editingDishId, setEditingDishId] = useState(null);
+  const [dishOverrides, setDishOverrides] = useState({});
+  const [ingredientOverrides, setIngredientOverrides] = useState({});
   const fileInputRef = useRef(null);
 
   const [family, setFamily] = useState(DEFAULT_FAMILY);
@@ -348,9 +352,20 @@ function MealPlanner() {
           setFridayCount(parsed.fridayCount || 0);
         }
       } catch (e) { /* inget sparat än */ }
+      try {
+        const ovrRes = await window.storage.get('dish-overrides', false);
+        if (ovrRes) {
+          const parsed = JSON.parse(ovrRes.value);
+          setDishOverrides(parsed.dishOverrides || {});
+          setIngredientOverrides(parsed.ingredientOverrides || {});
+        }
+      } catch (e) { /* inget sparat än */ }
       setStorageReady(true);
     })();
   }, []);
+
+  const skipDishesSaveRef = useRef(false);
+  const skipOverridesSaveRef = useRef(false);
 
   useEffect(() => {
     if (!window.storage || !window.storage.subscribe) return;
@@ -369,9 +384,44 @@ function MealPlanner() {
   }, []);
 
   useEffect(() => {
+    if (!window.storage || !window.storage.subscribe) return;
+    const unsub = window.storage.subscribe('custom-dishes', (raw) => {
+      if (raw === undefined || raw === null) return;
+      try {
+        const parsed = JSON.parse(raw);
+        skipDishesSaveRef.current = true;
+        setCustomDishes(parsed.dishes || []);
+        setCustomIngredients(parsed.ingredients || {});
+      } catch (e) { /* ogiltig data, ignorera */ }
+    });
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    if (!window.storage || !window.storage.subscribe) return;
+    const unsub = window.storage.subscribe('dish-overrides', (raw) => {
+      if (raw === undefined || raw === null) return;
+      try {
+        const parsed = JSON.parse(raw);
+        skipOverridesSaveRef.current = true;
+        setDishOverrides(parsed.dishOverrides || {});
+        setIngredientOverrides(parsed.ingredientOverrides || {});
+      } catch (e) { /* ogiltig data, ignorera */ }
+    });
+    return unsub;
+  }, []);
+
+  useEffect(() => {
     if (!storageReady || !window.storage) return;
+    if (skipDishesSaveRef.current) { skipDishesSaveRef.current = false; return; }
     window.storage.set('custom-dishes', JSON.stringify({ dishes: customDishes, ingredients: customIngredients }), false).catch(() => {});
   }, [customDishes, customIngredients, storageReady]);
+
+  useEffect(() => {
+    if (!storageReady || !window.storage) return;
+    if (skipOverridesSaveRef.current) { skipOverridesSaveRef.current = false; return; }
+    window.storage.set('dish-overrides', JSON.stringify({ dishOverrides, ingredientOverrides }), false).catch(() => {});
+  }, [dishOverrides, ingredientOverrides, storageReady]);
 
   useEffect(() => {
     if (!storageReady || !window.storage) return;
@@ -406,7 +456,10 @@ function MealPlanner() {
     window.storage.set('achievements', JSON.stringify({ triedDishIds, chosenPersons, lockCount, fridayCount }), false).catch(() => {});
   }, [triedDishIds, chosenPersons, lockCount, fridayCount, storageReady]);
 
-  const combinedLibrary = useMemo(() => [...LIBRARY, ...customDishes], [customDishes]);
+  const combinedLibrary = useMemo(() => {
+    const overridden = LIBRARY.map((d) => (dishOverrides[d.id] ? { ...d, ...dishOverrides[d.id] } : d));
+    return [...overridden, ...customDishes];
+  }, [customDishes, dishOverrides]);
 
   const currentWeekKey = weeks[selectedWeekIdx].key;
   const currentMenu = weeklyMenus[currentWeekKey] || emptyMenu();
@@ -414,7 +467,7 @@ function MealPlanner() {
 
   const getDish = (id) => combinedLibrary.find((d) => d.id === Number(id));
   const getPerson = (name) => family.find((f) => f.name === name);
-  const getIngredientsFor = (id) => INGREDIENTS[id] || customIngredients[id] || [];
+  const getIngredientsFor = (id) => ingredientOverrides[id] || INGREDIENTS[id] || customIngredients[id] || [];
 
   const weekFilledCount = (key) => DAYS.filter((d) => weeklyMenus[key]?.[d]?.dishId).length;
   const weekHasFish = (key) => DAYS.some((d) => {
@@ -522,7 +575,22 @@ function MealPlanner() {
   };
 
   const openAddDish = () => {
-    setDraftName(''); setDraftCategory(null); setDraftImage(null); setDraftImageUrl(''); setDraftIngredientsText(''); setDraftFriday(false); setDraftSoup(false);
+    setEditingDishId(null);
+    setDraftName(''); setDraftCategory(null); setDraftImage(null); setDraftImageUrl(''); setDraftIngredientsText(''); setDraftFriday(false); setDraftSoup(false); setDraftSourceUrl('');
+    setAddDishOpen(true);
+  };
+
+  const openEditDish = (dish) => {
+    setEditingDishId(dish.id);
+    setDraftName(dish.name);
+    setDraftCategory(dish.category);
+    setDraftImage(dish.image || null);
+    setDraftImageUrl('');
+    setDraftFriday(!!dish.friday);
+    setDraftSoup(!!dish.soup);
+    setDraftSourceUrl(dish.sourceUrl || '');
+    const ings = getIngredientsFor(dish.id);
+    setDraftIngredientsText(ings.map((i) => `${i.item}, ${i.amount}`).join('\n'));
     setAddDishOpen(true);
   };
 
@@ -541,10 +609,8 @@ function MealPlanner() {
     setDraftImageUrl('');
   };
 
-  const saveNewDish = () => {
-    if (!draftName.trim() || !draftCategory) return;
-    const id = Date.now();
-    const ingredients = draftIngredientsText
+  const parseIngredientsText = (text) =>
+    text
       .split('\n')
       .map((line) => line.trim())
       .filter(Boolean)
@@ -552,9 +618,54 @@ function MealPlanner() {
         const [item, ...rest] = line.split(',');
         return { item: (item || '').trim(), amount: rest.join(',').trim() || '–' };
       });
-    setCustomDishes((prev) => [...prev, { id, category: draftCategory, name: draftName.trim(), image: draftImage || '🍽️', friday: draftFriday, soup: draftSoup }]);
-    if (ingredients.length) setCustomIngredients((prev) => ({ ...prev, [id]: ingredients }));
+
+  const saveDish = (keepOpen) => {
+    if (!draftName.trim() || !draftCategory) return;
+    const ingredients = parseIngredientsText(draftIngredientsText);
+    const fields = {
+      category: draftCategory,
+      name: draftName.trim(),
+      image: draftImage || '🍽️',
+      friday: draftFriday,
+      soup: draftSoup,
+      sourceUrl: draftSourceUrl.trim(),
+    };
+
+    if (editingDishId !== null) {
+      const isCustom = customDishes.some((d) => d.id === editingDishId);
+      if (isCustom) {
+        setCustomDishes((prev) => prev.map((d) => (d.id === editingDishId ? { ...d, ...fields } : d)));
+        setCustomIngredients((prev) => ({ ...prev, [editingDishId]: ingredients }));
+      } else {
+        setDishOverrides((prev) => ({ ...prev, [editingDishId]: fields }));
+        setIngredientOverrides((prev) => ({ ...prev, [editingDishId]: ingredients }));
+      }
+    } else {
+      const id = Date.now();
+      setCustomDishes((prev) => [...prev, { id, ...fields }]);
+      if (ingredients.length) setCustomIngredients((prev) => ({ ...prev, [id]: ingredients }));
+    }
+
+    if (editingDishId === null && keepOpen) {
+      setDraftName(''); setDraftCategory(null); setDraftImage(null); setDraftImageUrl(''); setDraftIngredientsText(''); setDraftFriday(false); setDraftSoup(false); setDraftSourceUrl('');
+    } else {
+      setAddDishOpen(false);
+      setEditingDishId(null);
+    }
+  };
+
+  const deleteEditingDish = () => {
+    if (editingDishId === null) return;
+    if (!window.confirm(`Ta bort "${draftName}" permanent?`)) return;
+    setCustomDishes((prev) => prev.filter((d) => d.id !== editingDishId));
+    setCustomIngredients((prev) => {
+      const next = { ...prev };
+      delete next[editingDishId];
+      return next;
+    });
+    setFavorites((prev) => prev.filter((id) => id !== editingDishId));
     setAddDishOpen(false);
+    setEditingDishId(null);
   };
 
   const openEditFamilyPhoto = (index) => {
@@ -1148,6 +1259,13 @@ function MealPlanner() {
                       style={{ backgroundColor: cat.tint, opacity: isLocked ? 0.6 : 1 }}
                     >
                       <span
+                        onClick={(e) => { e.stopPropagation(); openEditDish(dish); }}
+                        className="absolute top-2 left-2 w-7 h-7 rounded-full flex items-center justify-center"
+                        style={{ backgroundColor: 'rgba(255,255,255,0.85)' }}
+                      >
+                        <Pencil size={13} color={COLORS.forestDark} />
+                      </span>
+                      <span
                         onClick={(e) => toggleFavorite(dish.id, e)}
                         className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
                         style={{ backgroundColor: 'rgba(255,255,255,0.85)' }}
@@ -1483,8 +1601,8 @@ function MealPlanner() {
           <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ backgroundColor: 'rgba(43,38,32,0.45)' }}>
             <div className="w-full max-w-md rounded-t-3xl p-5 overflow-y-auto" style={{ backgroundColor: COLORS.cream, maxHeight: '88vh' }}>
               <div className="flex items-center justify-between mb-4">
-                <p className="font-display text-lg" style={{ color: COLORS.forestDark }}>Ny rätt</p>
-                <button onClick={() => setAddDishOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: COLORS.sage }}>
+                <p className="font-display text-lg" style={{ color: COLORS.forestDark }}>{editingDishId !== null ? 'Redigera rätt' : 'Ny rätt'}</p>
+                <button onClick={() => { setAddDishOpen(false); setEditingDishId(null); }} className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: COLORS.sage }}>
                   <X size={16} color={COLORS.ink} />
                 </button>
               </div>
@@ -1580,6 +1698,18 @@ function MealPlanner() {
                 {draftSoup ? 'Markerad som soppa' : 'Markera som soppa?'}
               </button>
 
+              <label className="text-xs block mb-1" style={{ color: COLORS.inkSoft }}>Länk till receptet (valfritt)</label>
+              <input
+                value={draftSourceUrl}
+                onChange={(e) => setDraftSourceUrl(e.target.value)}
+                placeholder="https://..."
+                className="w-full text-sm rounded-xl px-3 py-3 border mb-2"
+                style={{ borderColor: COLORS.border, backgroundColor: '#fff' }}
+              />
+              <p className="text-xs mb-4" style={{ color: COLORS.inkSoft }}>
+                Visas som en "Recept ↗"-knapp på rätten. Om du bara klistrar in länken och hoppar över ingredienserna nedan blir rätten inte med i den automatiska inköpslistan.
+              </p>
+
               <label className="text-xs block mb-1" style={{ color: COLORS.inkSoft }}>Ingredienser (valfritt, en per rad: vara, mängd)</label>
               <textarea
                 value={draftIngredientsText}
@@ -1591,13 +1721,34 @@ function MealPlanner() {
               />
 
               <button
-                onClick={saveNewDish}
+                onClick={() => saveDish(false)}
                 disabled={!draftName.trim() || !draftCategory}
                 className="w-full text-sm font-semibold py-3 rounded-full disabled:opacity-40"
                 style={{ backgroundColor: COLORS.forestDark, color: '#fff' }}
               >
-                Spara rätt
+                {editingDishId !== null ? 'Spara ändringar' : 'Spara rätt'}
               </button>
+
+              {editingDishId === null && (
+                <button
+                  onClick={() => saveDish(true)}
+                  disabled={!draftName.trim() || !draftCategory}
+                  className="w-full text-sm font-semibold py-3 rounded-full disabled:opacity-40 mt-2"
+                  style={{ backgroundColor: COLORS.sage, color: COLORS.ink }}
+                >
+                  Spara & lägg till en till
+                </button>
+              )}
+
+              {editingDishId !== null && customDishes.some((d) => d.id === editingDishId) && (
+                <button
+                  onClick={deleteEditingDish}
+                  className="w-full text-sm font-semibold py-3 rounded-full mt-2"
+                  style={{ backgroundColor: '#fff', color: COLORS.rust, border: `1px solid ${COLORS.border}` }}
+                >
+                  Ta bort rätt
+                </button>
+              )}
             </div>
           </div>
         )}
