@@ -23,9 +23,9 @@
 <script src="https://cdn.tailwindcss.com"></script>
 
 <!-- React -->
-<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/8.0.4/babel.min.js"></script>
 
 <!-- PDF-export -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -51,6 +51,17 @@
 <script>
   (async () => {
     try {
+      if (typeof React === 'undefined' || typeof ReactDOM === 'undefined' || typeof Babel === 'undefined') {
+        const missing = [
+          typeof React === 'undefined' && 'React',
+          typeof ReactDOM === 'undefined' && 'ReactDOM',
+          typeof Babel === 'undefined' && 'Babel',
+        ].filter(Boolean).join(', ');
+        throw new Error(
+          `Kunde inte ladda: ${missing}. Troligen blockerar nätverket/routern cdnjs.cloudflare.com ` +
+          'eller unpkg.com — testa på ett annat nätverk (t.ex. mobildata) eller kontrollera brandvägg/DNS-filter.'
+        );
+      }
       const [shimSrc, appSrc] = await Promise.all([
         fetch('src/shim.js').then((r) => r.text()),
         fetch('src/app.js').then((r) => r.text()),
