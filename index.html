@@ -62,9 +62,10 @@
           'eller unpkg.com — testa på ett annat nätverk (t.ex. mobildata) eller kontrollera brandvägg/DNS-filter.'
         );
       }
+      const stripBom = (text) => text.replace(/^\uFEFF/, '');
       const [shimSrc, appSrc] = await Promise.all([
-        fetch('src/shim.js').then((r) => r.text()),
-        fetch('src/app.js').then((r) => r.text()),
+        fetch('src/shim.js').then((r) => r.text()).then(stripBom),
+        fetch('src/app.js').then((r) => r.text()).then(stripBom),
       ]);
       const combined =
         shimSrc +
