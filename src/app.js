@@ -1,4 +1,3 @@
-
 const COLORS = {
   cream: '#FBF8F3',
   ink: '#2B2620',
