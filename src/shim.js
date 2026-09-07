@@ -28,13 +28,13 @@ const Award = (p) => React.createElement(IconBase, { emoji: '\u{1F3C5}', ...p })
 // Så länge apiKey/databaseURL står tomma sparas allt bara lokalt på varje
 // enhet för sig (fungerar fint, men synkas då inte mellan skärmen och telefoner).
 const FIREBASE_CONFIG = {
-  apiKey: "",
-  authDomain: "",
-  databaseURL: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: "",
+  apiKey: "AIzaSyA2GLfPQ1NbTlBtHWxoBbRqikDSL4usy64",
+  authDomain: "veckomeny-yttervagen.firebaseapp.com",
+  databaseURL: "https://veckomeny-yttervagen-default-rtdb.firebaseio.com",
+  projectId: "veckomeny-yttervagen",
+  storageBucket: "veckomeny-yttervagen.firebasestorage.app",
+  messagingSenderId: "969039213607",
+  appId: "1:969039213607:web:1277e05c2bae9bf85a8a02",
 };
 
 const firebaseConfigured = !!(FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.databaseURL);
