@@ -62,26 +62,48 @@
           'eller unpkg.com — testa på ett annat nätverk (t.ex. mobildata) eller kontrollera brandvägg/DNS-filter.'
         );
       }
-      const stripBom = (text) => text.replace(/^\uFEFF/, '');
-      const [shimSrc, appSrc] = await Promise.all([
-        fetch('src/shim.js').then((r) => r.text()).then(stripBom),
-        fetch('src/app.js').then((r) => r.text()).then(stripBom),
-      ]);
+      const stripBom = (text) => text.replace(/^[\uFEFF\u200B]+/, '');
+      const fetchSrc = async (path) => {
+        const res = await fetch(path);
+        const text = await res.text();
+        return { path, ok: res.ok, status: res.status, raw: text, clean: stripBom(text) };
+      };
+      const [shim, app] = await Promise.all([fetchSrc('src/shim.js'), fetchSrc('src/app.js')]);
+
+      const describe = (f) => {
+        const codes = Array.from(f.clean.slice(0, 8)).map((c) => c.charCodeAt(0));
+        return `${f.path}: HTTP ${f.status}, ${f.clean.length} tecken, börjar med koderna [${codes.join(',')}]`;
+      };
+
+      if (!shim.ok || !app.ok || shim.clean.length < 20 || app.clean.length < 20) {
+        throw new Error(
+          'Filerna gick inte att hämta korrekt.\n' + describe(shim) + '\n' + describe(app)
+        );
+      }
+
       const combined =
-        shimSrc +
+        shim.clean +
         '\n\n' +
-        appSrc +
+        app.clean +
         '\n\nReactDOM.createRoot(document.getElementById("root")).render(React.createElement(MealPlanner));';
-      const { code } = Babel.transform(combined, { presets: ['react'] });
+      let code;
+      try {
+        code = Babel.transform(combined, { presets: ['react'] }).code;
+      } catch (parseErr) {
+        throw new Error(
+          (parseErr && parseErr.message ? parseErr.message : parseErr) +
+          '\n\nDIAGNOSTIK — skicka denna rad till Claude:\n' + describe(shim) + '\n' + describe(app)
+        );
+      }
       const script = document.createElement('script');
       script.textContent = code;
       document.body.appendChild(script);
     } catch (err) {
       document.getElementById('root').innerHTML =
-        '<div style="padding:24px;font-family:sans-serif;color:#8A6A22">' +
+        '<div style="padding:24px;font-family:sans-serif;color:#8A6A22;white-space:pre-wrap">' +
         'Kunde inte starta appen. Om du testar lokalt: dubbelklick på index.html ' +
         'räcker inte, kör en lokal server (se README) eller öppna den driftsatta ' +
-        'länken istället.<br><br><code>' + (err && err.message ? err.message : err) + '</code></div>';
+        'länken istället.\n\n' + (err && err.message ? err.message : err) + '</div>';
     }
   })();
 </script>
