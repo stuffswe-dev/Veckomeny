@@ -246,6 +246,7 @@ function MealPlanner() {
   const [draftFriday, setDraftFriday] = useState(false);
   const [draftSoup, setDraftSoup] = useState(false);
   const [draftSourceUrl, setDraftSourceUrl] = useState('');
+  const [recipeFetchStatus, setRecipeFetchStatus] = useState(null);
   const [editingDishId, setEditingDishId] = useState(null);
   const [dishOverrides, setDishOverrides] = useState({});
   const [ingredientOverrides, setIngredientOverrides] = useState({});
@@ -577,6 +578,7 @@ function MealPlanner() {
   const openAddDish = () => {
     setEditingDishId(null);
     setDraftName(''); setDraftCategory(null); setDraftImage(null); setDraftImageUrl(''); setDraftIngredientsText(''); setDraftFriday(false); setDraftSoup(false); setDraftSourceUrl('');
+    setRecipeFetchStatus(null);
     setAddDishOpen(true);
   };
 
@@ -589,6 +591,7 @@ function MealPlanner() {
     setDraftFriday(!!dish.friday);
     setDraftSoup(!!dish.soup);
     setDraftSourceUrl(dish.sourceUrl || '');
+    setRecipeFetchStatus(null);
     const ings = getIngredientsFor(dish.id);
     setDraftIngredientsText(ings.map((i) => `${i.item}, ${i.amount}`).join('\n'));
     setAddDishOpen(true);
@@ -607,6 +610,28 @@ function MealPlanner() {
     if (!url) return;
     setDraftImage(url);
     setDraftImageUrl('');
+  };
+
+  const fetchRecipeFromLink = async () => {
+    const url = draftSourceUrl.trim();
+    if (!url) return;
+    setRecipeFetchStatus('loading');
+    try {
+      const res = await fetch(`/.netlify/functions/fetch-recipe?url=${encodeURIComponent(url)}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setRecipeFetchStatus(data.error || 'Kunde inte hämta receptet.');
+        return;
+      }
+      if (data.name && !draftName.trim()) setDraftName(data.name);
+      if (data.image) setDraftImage(data.image);
+      if (data.ingredients && data.ingredients.length) {
+        setDraftIngredientsText(data.ingredients.map((i) => `${i.item}, ${i.amount}`.replace(/,\s*$/, '')).join('\n'));
+      }
+      setRecipeFetchStatus('Hämtat! Kolla igenom och justera vid behov innan du sparar.');
+    } catch (e) {
+      setRecipeFetchStatus('Kunde inte hämta receptet. Fyll i manuellt istället.');
+    }
   };
 
   const parseIngredientsText = (text) =>
@@ -1706,8 +1731,21 @@ function MealPlanner() {
                 className="w-full text-sm rounded-xl px-3 py-3 border mb-2"
                 style={{ borderColor: COLORS.border, backgroundColor: '#fff' }}
               />
+              <button
+                onClick={fetchRecipeFromLink}
+                disabled={!draftSourceUrl.trim() || recipeFetchStatus === 'loading'}
+                className="w-full text-sm font-semibold py-2.5 rounded-full mb-2 disabled:opacity-40"
+                style={{ backgroundColor: COLORS.forest, color: COLORS.cream }}
+              >
+                {recipeFetchStatus === 'loading' ? 'Hämtar...' : 'Hämta namn, bild & ingredienser från länken'}
+              </button>
+              {recipeFetchStatus && recipeFetchStatus !== 'loading' && (
+                <p className="text-xs mb-2" style={{ color: recipeFetchStatus.startsWith('Hämtat') ? COLORS.forestDark : COLORS.rust }}>
+                  {recipeFetchStatus}
+                </p>
+              )}
               <p className="text-xs mb-4" style={{ color: COLORS.inkSoft }}>
-                Visas som en "Recept ↗"-knapp på rätten. Om du bara klistrar in länken och hoppar över ingredienserna nedan blir rätten inte med i den automatiska inköpslistan.
+                Fungerar för sajter med strukturerad receptdata (bl.a. ICA.se). Funkar det inte för en viss sajt, fyll i manuellt istället. Visas alltid som en "Recept ↗"-knapp på rätten.
               </p>
 
               <label className="text-xs block mb-1" style={{ color: COLORS.inkSoft }}>Ingredienser (valfritt, en per rad: vara, mängd)</label>
