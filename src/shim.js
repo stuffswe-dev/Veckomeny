@@ -20,6 +20,7 @@ const Users = (p) => React.createElement(IconBase, { emoji: '\u{1F46A}', ...p })
 const Star = ({ size = 20, fill }) => React.createElement(IconBase, { emoji: fill && fill !== 'none' ? '\u2B50' : '\u2606', size });
 const Maximize2 = (p) => React.createElement(IconBase, { emoji: '\u{1F5A5}\uFE0F', ...p });
 const Award = (p) => React.createElement(IconBase, { emoji: '\u{1F3C5}', ...p });
+const Pencil = (p) => React.createElement(IconBase, { emoji: '\u270F\uFE0F', ...p });
 
 // ============================================================================
 // DELA MELLAN KÖKSSKÄRM OCH TELEFONER (Firebase Realtime Database)
