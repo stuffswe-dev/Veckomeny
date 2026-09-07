@@ -1,4 +1,4 @@
-const CACHE_NAME = 'veckomeny-v1';
+const CACHE_NAME = 'veckomeny-v2';
 const CORE_ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
@@ -15,20 +15,20 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// Nätverk först, cache bara som reservlösning om enheten faktiskt är offline.
+// (Tidigare var det tvärtom - cache först - vilket kunde fastna på en gammal,
+// trasig version av appen även efter att den rättats på riktigt.)
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const fetchPromise = fetch(event.request)
-        .then((response) => {
-          if (response && (response.status === 200 || response.type === 'opaque')) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone)).catch(() => {});
-          }
-          return response;
-        })
-        .catch(() => cached);
-      return cached || fetchPromise;
-    })
+    fetch(event.request)
+      .then((response) => {
+        if (response && (response.status === 200 || response.type === 'opaque')) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone)).catch(() => {});
+        }
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
