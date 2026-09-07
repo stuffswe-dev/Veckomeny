@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Veckans meny</title>
+<meta name="description" content="Familjens veckomeny, matbibliotek och inköpslista" />
+
+<!-- PWA / hemskärm -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#3F5D48" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Meny" />
+<link rel="icon" href="icon-192.png" />
+
+<!-- Typsnitt -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+<!-- Tailwind (Play CDN) -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- React -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<!-- PDF-export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<!-- Delning mellan enheter (Firebase Realtime Database) - konfiguration i src/shim.js -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+<style>
+  html, body { margin: 0; padding: 0; background: #FBF8F3; }
+  .font-display { font-family: 'Fraunces', serif; }
+  .font-body { font-family: 'Work Sans', sans-serif; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!--
+  Appens källkod ligger i src/shim.js och src/app.js (redigera dem, inte den
+  här filen). De hämtas och slås ihop här nedan innan de körs, så att de delar
+  samma variabler (t.ex. ikonerna i shim.js) precis som om de vore en fil.
+-->
+<script>
+  (async () => {
+    try {
+      const [shimSrc, appSrc] = await Promise.all([
+        fetch('src/shim.js').then((r) => r.text()),
+        fetch('src/app.js').then((r) => r.text()),
+      ]);
+      const combined =
+        shimSrc +
+        '\n\n' +
+        appSrc +
+        '\n\nReactDOM.createRoot(document.getElementById("root")).render(React.createElement(MealPlanner));';
+      const { code } = Babel.transform(combined, { presets: ['react'] });
+      const script = document.createElement('script');
+      script.textContent = code;
+      document.body.appendChild(script);
+    } catch (err) {
+      document.getElementById('root').innerHTML =
+        '<div style="padding:24px;font-family:sans-serif;color:#8A6A22">' +
+        'Kunde inte starta appen. Om du testar lokalt: dubbelklick på index.html ' +
+        'räcker inte, kör en lokal server (se README) eller öppna den driftsatta ' +
+        'länken istället.<br><br><code>' + (err && err.message ? err.message : err) + '</code></div>';
+    }
+  })();
+</script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
+</script>
+</body>
+</html>
