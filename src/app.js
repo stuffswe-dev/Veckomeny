@@ -618,9 +618,19 @@ function MealPlanner() {
     setRecipeFetchStatus('loading');
     try {
       const res = await fetch(`/.netlify/functions/fetch-recipe?url=${encodeURIComponent(url)}`);
-      const data = await res.json();
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseErr) {
+        setRecipeFetchStatus(
+          `Fick ett oväntat svar (HTTP ${res.status}) — funktionen är troligen inte uppsatt än. ` +
+          `Kontrollera att netlify.toml och netlify/functions/fetch-recipe.js finns i repot.`
+        );
+        return;
+      }
       if (!res.ok) {
-        setRecipeFetchStatus(data.error || 'Kunde inte hämta receptet.');
+        setRecipeFetchStatus(data.error || `Kunde inte hämta receptet (HTTP ${res.status}).`);
         return;
       }
       if (data.name && !draftName.trim()) setDraftName(data.name);
@@ -630,7 +640,7 @@ function MealPlanner() {
       }
       setRecipeFetchStatus('Hämtat! Kolla igenom och justera vid behov innan du sparar.');
     } catch (e) {
-      setRecipeFetchStatus('Kunde inte hämta receptet. Fyll i manuellt istället.');
+      setRecipeFetchStatus('Kunde inte nå funktionen: ' + (e && e.message ? e.message : String(e)));
     }
   };
 
