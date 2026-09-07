@@ -108,7 +108,7 @@
         '\n\nReactDOM.createRoot(document.getElementById("root")).render(React.createElement(MealPlanner));';
       let code;
       try {
-        code = Babel.transform(combined, { presets: ['react'] }).code;
+        code = Babel.transform(combined, { presets: [['react', { runtime: 'classic' }]] }).code;
       } catch (parseErr) {
         throw new Error(
           (parseErr && parseErr.message ? parseErr.message : parseErr) +
