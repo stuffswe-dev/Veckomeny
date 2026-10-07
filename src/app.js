@@ -1,3 +1,4 @@
+
 const COLORS = {
   cream: '#FBF8F3',
   ink: '#2B2620',
@@ -230,6 +231,8 @@ function ConfettiBurst() {
 function MealPlanner() {
   const [view, setView] = useState('meny');
   const [activeCategory, setActiveCategory] = useState('Alla');
+  const [librarySearch, setLibrarySearch] = useState('');
+  const [enlargedDish, setEnlargedDish] = useState(null);
   const [sheet, setSheet] = useState(null);
   const [sheetCategory, setSheetCategory] = useState('Alla');
 
@@ -256,6 +259,15 @@ function MealPlanner() {
   const [familyOpen, setFamilyOpen] = useState(false);
   const [editingFamilyIndex, setEditingFamilyIndex] = useState(null);
   const [familyUrlDraft, setFamilyUrlDraft] = useState('');
+  const [editingNameIndex, setEditingNameIndex] = useState(null);
+  const [parentPin, setParentPin] = useState('');
+  const [pinDraftSetting, setPinDraftSetting] = useState('');
+  const [adminUnlocked, setAdminUnlocked] = useState(false);
+  const [pinPromptOpen, setPinPromptOpen] = useState(false);
+  const [pinDraft, setPinDraft] = useState('');
+  const [pinError, setPinError] = useState(null);
+  const [pendingAction, setPendingAction] = useState(null);
+  const [nameDraft, setNameDraft] = useState('');
   const familyFileInputRef = useRef(null);
 
   const [favorites, setFavorites] = useState([]);
@@ -342,6 +354,10 @@ function MealPlanner() {
       try {
         const servRes = await window.storage.get('servings', false);
         if (servRes) setServings(JSON.parse(servRes.value));
+      } catch (e) { /* inget sparat än */ }
+      try {
+        const pinRes = await window.storage.get('parent-pin', false);
+        if (pinRes) setParentPin(JSON.parse(pinRes.value));
       } catch (e) { /* inget sparat än */ }
       try {
         const achRes = await window.storage.get('achievements', false);
@@ -450,6 +466,11 @@ function MealPlanner() {
     if (!storageReady || !window.storage) return;
     window.storage.set('servings', JSON.stringify(servings), false).catch(() => {});
   }, [servings, storageReady]);
+
+  useEffect(() => {
+    if (!storageReady || !window.storage) return;
+    window.storage.set('parent-pin', JSON.stringify(parentPin), false).catch(() => {});
+  }, [parentPin, storageReady]);
 
   useEffect(() => {
     if (!storageReady || !window.storage) return;
@@ -573,6 +594,28 @@ function MealPlanner() {
     e.stopPropagation();
     if (isLocked) return;
     setWeeklyMenus((prev) => ({ ...prev, [currentWeekKey]: { ...prev[currentWeekKey], [day]: { dishId: null, person: null } } }));
+  };
+
+  const requireAdmin = (action) => {
+    if (!parentPin || adminUnlocked) {
+      action();
+      return;
+    }
+    setPendingAction(() => action);
+    setPinDraft('');
+    setPinError(null);
+    setPinPromptOpen(true);
+  };
+
+  const confirmPin = () => {
+    if (pinDraft === parentPin) {
+      setAdminUnlocked(true);
+      setPinPromptOpen(false);
+      if (pendingAction) pendingAction();
+      setPendingAction(null);
+    } else {
+      setPinError('Fel kod, försök igen.');
+    }
   };
 
   const openAddDish = () => {
@@ -732,6 +775,33 @@ function MealPlanner() {
   const resetFamilyPhoto = (index) => {
     const original = DEFAULT_FAMILY.find((f) => f.name === family[index]?.name);
     setFamily((prev) => prev.map((f, i) => (i === index ? { ...f, avatar: original ? original.avatar : '🙂' } : f)));
+  };
+
+  const startEditName = (i) => {
+    setEditingNameIndex(i);
+    setNameDraft(family[i].name);
+  };
+
+  const saveEditName = () => {
+    const trimmed = nameDraft.trim();
+    if (trimmed && editingNameIndex !== null) {
+      setFamily((prev) => prev.map((f, idx) => (idx === editingNameIndex ? { ...f, name: trimmed } : f)));
+    }
+    setEditingNameIndex(null);
+  };
+
+  const addFamilyMember = () => {
+    const newIndex = family.length;
+    setFamily((prev) => [...prev, { name: 'Ny person', avatar: '🙂' }]);
+    setEditingNameIndex(newIndex);
+    setNameDraft('Ny person');
+  };
+
+  const removeFamilyMember = (i) => {
+    if (family.length <= 1) return;
+    if (!window.confirm(`Ta bort ${family[i].name} från familjen?`)) return;
+    setFamily((prev) => prev.filter((_, idx) => idx !== i));
+    if (editingNameIndex === i) setEditingNameIndex(null);
   };
 
   const shoppingList = useMemo(() => {
@@ -938,7 +1008,9 @@ function MealPlanner() {
     if (pill === 'Favoriter') return list.filter((d) => isFavorite(d.id));
     return list.filter((d) => d.category === pill);
   };
-  const filteredLibrary = filterByPill(combinedLibrary, activeCategory);
+  const filteredLibrary = filterByPill(combinedLibrary, activeCategory).filter((d) =>
+    d.name.toLowerCase().includes(librarySearch.trim().toLowerCase())
+  );
   const sheetLibrary = filterByPill(combinedLibrary, sheetCategory);
   const selectedFilled = weekFilledCount(currentWeekKey);
 
@@ -1185,7 +1257,9 @@ function MealPlanner() {
                     {dish ? (
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3">
-                          <DishThumb image={dish.image} boxSize="w-16 h-16" textSize="text-4xl" />
+                          <span onClick={(e) => { e.stopPropagation(); setEnlargedDish(dish); }}>
+                            <DishThumb image={dish.image} boxSize="w-16 h-16" textSize="text-4xl" />
+                          </span>
                           <div>
                             <p className="text-base font-semibold">{dish.name}</p>
                             <p className="text-xs" style={{ color: COLORS.inkSoft }}>{dish.category}</p>
@@ -1231,6 +1305,25 @@ function MealPlanner() {
                   Lås upp veckan för att lägga till fler rätter.
                 </div>
               )}
+              <div className="relative mb-3">
+                <Search size={16} color={COLORS.inkSoft} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
+                <input
+                  value={librarySearch}
+                  onChange={(e) => setLibrarySearch(e.target.value)}
+                  placeholder="Sök i biblioteket..."
+                  className="w-full text-sm rounded-full pl-9 pr-9 py-2.5 border"
+                  style={{ borderColor: COLORS.border, backgroundColor: '#fff' }}
+                />
+                {librarySearch && (
+                  <span
+                    onClick={() => setLibrarySearch('')}
+                    className="w-6 h-6 rounded-full flex items-center justify-center"
+                    style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', backgroundColor: COLORS.sage }}
+                  >
+                    <X size={12} color={COLORS.ink} />
+                  </span>
+                )}
+              </div>
               <div className="flex gap-2 overflow-x-auto pb-1 mb-4">
                 <button
                   onClick={() => setActiveCategory('Alla')}
@@ -1274,7 +1367,7 @@ function MealPlanner() {
 
               <div className="grid grid-cols-2 gap-3">
                 <button
-                  onClick={openAddDish}
+                  onClick={() => requireAdmin(openAddDish)}
                   disabled={isLocked}
                   className="rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-2 border-2 border-dashed transition-transform active:scale-95"
                   style={{ borderColor: COLORS.border, color: COLORS.inkSoft, opacity: isLocked ? 0.6 : 1, minHeight: '148px' }}
@@ -1294,7 +1387,7 @@ function MealPlanner() {
                       style={{ backgroundColor: cat.tint, opacity: isLocked ? 0.6 : 1 }}
                     >
                       <span
-                        onClick={(e) => { e.stopPropagation(); openEditDish(dish); }}
+                        onClick={(e) => { e.stopPropagation(); requireAdmin(() => openEditDish(dish)); }}
                         className="absolute top-2 left-2 w-7 h-7 rounded-full flex items-center justify-center"
                         style={{ backgroundColor: 'rgba(255,255,255,0.85)' }}
                       >
@@ -1328,6 +1421,11 @@ function MealPlanner() {
                   );
                 })}
               </div>
+              {filteredLibrary.length === 0 && (
+                <p className="text-sm text-center mt-4" style={{ color: COLORS.inkSoft }}>
+                  Inga rätter matchade "{librarySearch}".
+                </p>
+              )}
             </div>
           )}
 
@@ -1817,10 +1915,28 @@ function MealPlanner() {
                 {family.map((f, i) => {
                   const isPhoto = f.avatar.startsWith('data:') || f.avatar.startsWith('http');
                   return (
-                    <div key={f.name} className="rounded-2xl p-3 border" style={{ backgroundColor: '#fff', borderColor: COLORS.border }}>
+                    <div key={i} className="rounded-2xl p-3 border" style={{ backgroundColor: '#fff', borderColor: COLORS.border }}>
                       <div className="flex items-center gap-3">
                         <PersonThumb avatar={f.avatar} boxSize="w-14 h-14" textSize="text-4xl" />
-                        <p className="text-sm font-semibold flex-1">{f.name}</p>
+                        {editingNameIndex === i ? (
+                          <input
+                            autoFocus
+                            value={nameDraft}
+                            onChange={(e) => setNameDraft(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') saveEditName(); if (e.key === 'Escape') setEditingNameIndex(null); }}
+                            onBlur={saveEditName}
+                            className="flex-1 text-sm font-semibold px-2 py-1 rounded-lg border"
+                            style={{ borderColor: COLORS.border }}
+                          />
+                        ) : (
+                          <span
+                            onClick={() => startEditName(i)}
+                            className="flex-1 flex items-center gap-1.5"
+                          >
+                            <p className="text-sm font-semibold">{f.name}</p>
+                            <Pencil size={12} color={COLORS.inkSoft} />
+                          </span>
+                        )}
                         <button
                           onClick={() => { setEditingFamilyIndex(editingFamilyIndex === i ? null : i); setFamilyUrlDraft(''); }}
                           className="text-xs font-medium px-3 py-2 rounded-full flex items-center gap-1 flex-shrink-0"
@@ -1835,6 +1951,15 @@ function MealPlanner() {
                             style={{ backgroundColor: COLORS.sage }}
                           >
                             <X size={14} color={COLORS.ink} />
+                          </button>
+                        )}
+                        {family.length > 1 && (
+                          <button
+                            onClick={() => removeFamilyMember(i)}
+                            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{ backgroundColor: COLORS.lockedBg }}
+                          >
+                            <Trash2 size={14} color={COLORS.rust} />
                           </button>
                         )}
                       </div>
@@ -1869,9 +1994,85 @@ function MealPlanner() {
                   );
                 })}
               </div>
-              <p className="text-xs mt-4" style={{ color: COLORS.inkSoft }}>
-                Bilderna sparas på den här enheten. Om filväljaren inte öppnar sig, klistra in en bildlänk istället. Krysset tar bort en egen bild och återställer standardikonen.
+              <button
+                onClick={addFamilyMember}
+                className="w-full flex items-center justify-center gap-2 text-sm font-semibold py-3 rounded-full mt-3"
+                style={{ backgroundColor: COLORS.sage, color: COLORS.ink }}
+              >
+                <Plus size={16} /> Lägg till familjemedlem
+              </button>
+              <p className="text-xs mt-4 mb-4" style={{ color: COLORS.inkSoft }}>
+                Tryck på ett namn för att byta det. Bilderna sparas på den här enheten. Om filväljaren inte öppnar sig, klistra in en bildlänk istället. Krysset tar bort en egen bild och återställer standardikonen.
               </p>
+
+              <div className="rounded-2xl p-4 border" style={{ backgroundColor: '#fff', borderColor: COLORS.border }}>
+                <p className="text-sm font-semibold mb-1" style={{ color: COLORS.forestDark }}>🔒 Föräldrakod</p>
+                <p className="text-xs mb-3" style={{ color: COLORS.inkSoft }}>
+                  Om ifylld krävs koden för att lägga till, ändra eller ta bort rätter i Biblioteket — bra för att hindra små fingrar från att peta i listan. Att välja och favoritmarkera mat påverkas inte. Lämna tomt för att stänga av. Detta är inte ett riktigt lösenord, bara ett litet föräldralås.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    value={pinDraftSetting}
+                    onChange={(e) => setPinDraftSetting(e.target.value)}
+                    placeholder={parentPin ? '•••• (ändra)' : 'T.ex. 1234'}
+                    className="flex-1 text-sm rounded-xl px-3 py-2.5 border"
+                    style={{ borderColor: COLORS.border, backgroundColor: '#fff' }}
+                  />
+                  <button
+                    onClick={() => { setParentPin(pinDraftSetting.trim()); setPinDraftSetting(''); setAdminUnlocked(true); }}
+                    className="text-xs font-semibold px-4 py-2.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: COLORS.forestDark, color: '#fff' }}
+                  >
+                    Spara
+                  </button>
+                </div>
+                {parentPin && (
+                  <button
+                    onClick={() => { setParentPin(''); setPinDraftSetting(''); }}
+                    className="text-xs font-medium mt-2 underline"
+                    style={{ color: COLORS.rust }}
+                  >
+                    Stäng av föräldrakoden
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {pinPromptOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{ backgroundColor: 'rgba(43,38,32,0.45)' }}>
+            <div className="w-full max-w-xs rounded-3xl p-5" style={{ backgroundColor: COLORS.cream }}>
+              <p className="font-display text-lg mb-1" style={{ color: COLORS.forestDark }}>Föräldrakod</p>
+              <p className="text-xs mb-3" style={{ color: COLORS.inkSoft }}>Ange koden för att ändra rätter.</p>
+              <input
+                type="password"
+                inputMode="numeric"
+                autoFocus
+                value={pinDraft}
+                onChange={(e) => { setPinDraft(e.target.value); setPinError(null); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') confirmPin(); }}
+                placeholder="••••"
+                className="w-full text-center text-2xl tracking-widest rounded-xl px-3 py-3 border mb-2"
+                style={{ borderColor: COLORS.border, backgroundColor: '#fff' }}
+              />
+              {pinError && <p className="text-xs mb-2" style={{ color: COLORS.rust }}>{pinError}</p>}
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => { setPinPromptOpen(false); setPendingAction(null); }}
+                  className="flex-1 text-sm font-medium py-2.5 rounded-full"
+                  style={{ backgroundColor: COLORS.sage, color: COLORS.ink }}
+                >
+                  Avbryt
+                </button>
+                <button
+                  onClick={confirmPin}
+                  className="flex-1 text-sm font-semibold py-2.5 rounded-full"
+                  style={{ backgroundColor: COLORS.forestDark, color: '#fff' }}
+                >
+                  Lås upp
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -1904,6 +2105,29 @@ function MealPlanner() {
                 })}
               </div>
             </div>
+          </div>
+        )}
+
+        {enlargedDish && (
+          <div
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center px-6"
+            style={{ backgroundColor: 'rgba(43,38,32,0.9)' }}
+            onClick={() => setEnlargedDish(null)}
+          >
+            <button
+              onClick={() => setEnlargedDish(null)}
+              className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center"
+              style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
+            >
+              <X size={20} color="#fff" />
+            </button>
+            {enlargedDish.image && (enlargedDish.image.startsWith('data:') || enlargedDish.image.startsWith('http')) ? (
+              <img src={enlargedDish.image} alt="" className="w-full max-w-sm rounded-3xl object-cover" style={{ maxHeight: '65vh' }} />
+            ) : (
+              <span style={{ fontSize: '9rem', lineHeight: 1 }}>{enlargedDish.image}</span>
+            )}
+            <p className="font-display text-2xl mt-5 text-center" style={{ color: '#fff' }}>{enlargedDish.name}</p>
+            <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.7)' }}>{enlargedDish.category}</p>
           </div>
         )}
 

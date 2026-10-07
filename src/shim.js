@@ -1,7 +1,7 @@
 // ---------- Fristående ersättningar för Claude-specifika beroenden ----------
 // Ikonerna (lucide-react) ersätts med emoji så appen inte behöver något ikonbibliotek.
-function IconBase({ emoji, size = 20 }) {
-  return React.createElement('span', { style: { fontSize: size, lineHeight: 1, display: 'inline-block' } }, emoji);
+function IconBase({ emoji, size = 20, style }) {
+  return React.createElement('span', { style: { fontSize: size, lineHeight: 1, display: 'inline-block', ...style } }, emoji);
 }
 const ChefHat = (p) => React.createElement(IconBase, { emoji: '\u{1F468}\u200D\u{1F373}', ...p });
 const CalendarDays = (p) => React.createElement(IconBase, { emoji: '\u{1F4C5}', ...p });
@@ -21,6 +21,8 @@ const Star = ({ size = 20, fill }) => React.createElement(IconBase, { emoji: fil
 const Maximize2 = (p) => React.createElement(IconBase, { emoji: '\u{1F5A5}\uFE0F', ...p });
 const Award = (p) => React.createElement(IconBase, { emoji: '\u{1F3C5}', ...p });
 const Pencil = (p) => React.createElement(IconBase, { emoji: '\u270F\uFE0F', ...p });
+const Trash2 = (p) => React.createElement(IconBase, { emoji: '\u{1F5D1}\uFE0F', ...p });
+const Search = (p) => React.createElement(IconBase, { emoji: '\u{1F50D}', ...p });
 
 // ============================================================================
 // DELA MELLAN KÖKSSKÄRM OCH TELEFONER (Firebase Realtime Database)
