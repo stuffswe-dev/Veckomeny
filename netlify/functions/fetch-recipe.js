@@ -120,8 +120,8 @@ function normalizeRecipe(r) {
 
 function splitIngredientLine(line) {
   const text = String(line).trim();
-  const m = text.match(/^([\d.,/½¼¾\s]*\s*(?:dl|l|msk|tsk|g|kg|st|krm|paket|burk|förp|skivor?|klyftor?)?)\s*(.*)$/i);
+  const unit = '(?:dl|l|msk|tsk|g|kg|st|krm|paket|burk(?:ar)?|förp(?:ackning)?|skivor?|klyftor?)';
+  const m = text.match(new RegExp(`^([\\d.,/½¼¾\\s]*\\s*${unit}?)(?=\\s|,|\\)|$)\\s*(.*)$`, 'i'));
   if (m && m[2] && m[1].trim()) return { item: m[2].trim(), amount: m[1].trim() };
   return { item: text, amount: '' };
 }
-
