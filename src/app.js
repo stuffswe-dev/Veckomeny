@@ -28,9 +28,18 @@ const DEFAULT_FAMILY = [
 const CATEGORIES = [
   { name: 'Kött', icon: '🥩', tint: '#F7E4DC', accent: '#B5533C' },
   { name: 'Fisk', icon: '🐟', tint: '#DCEEF2', accent: '#2E6E7E' },
-  { name: 'Fågel & Veg', icon: '🥦', tint: '#E3EEDC', accent: '#4C7A3B' },
+  { name: 'Fågel', icon: '🍗', tint: '#F6EAD3', accent: '#A8742A' },
+  { name: 'Veg', icon: '🥦', tint: '#E3EEDC', accent: '#4C7A3B' },
   { name: 'Barnfavoriter', icon: '🍕', tint: '#FCEFD1', accent: '#C9974B' },
 ];
+
+// Gamla dishes sparade som 'Fågel & Veg' delas upp i Fågel/Veg.
+function normalizeDish(d) {
+  if (d.category !== 'Fågel & Veg') return d;
+  const text = ((d.name || '') + ' ' + (d.image || '')).toLowerCase();
+  const isBird = /kyckling|kalkon|anka|🍗|🦃/.test(text);
+  return { ...d, category: isBird ? 'Fågel' : 'Veg' };
+}
 
 function categoryOf(name) {
   return CATEGORIES.find((c) => c.name === name) || CATEGORIES[0];
@@ -62,11 +71,11 @@ const LIBRARY = [
   { id: 8, category: 'Fisk', name: 'Fiskgratäng', image: 'https://assets.icanet.se/e_sharpen:80,q_auto,dpr_1.25,w_1200,h_1200,c_lfill/imagevaultfiles/id_238600/cf_259/fiskgratang_med_dill.jpg', sourceUrl: 'https://www.ica.se/recept/fiskgratang-med-dill-722240/' },
   { id: 9, category: 'Fisk', name: 'Fiskpinnar med mos', image: '🐟', sourceUrl: 'https://www.ica.se/recept/fiskpinnar-med-mos-och-varm-bonsallad-417416/' },
   { id: 10, category: 'Fisk', name: 'Fiskbullar i currysås', image: '🍛', sourceUrl: 'https://fridasrecept.blogg.se/2009/september/fiskbullar-i-currysas.html' },
-  { id: 11, category: 'Fågel & Veg', name: 'Kycklinggryta', image: '🍗', sourceUrl: 'https://www.ica.se/recept/kycklinggryta-med-curry-och-kokosmjolk-728156/' },
-  { id: 12, category: 'Fågel & Veg', name: 'Kycklingnuggets', friday: true, image: '🍗', sourceUrl: 'https://www.ica.se/recept/kycklingnuggets-med-tzatziki-720351/' },
-  { id: 13, category: 'Fågel & Veg', name: 'Ugnsbakad kyckling', image: '🍗', sourceUrl: 'https://www.ica.se/recept/ugnsstekt-kyckling-med-klyftpotatis-717111/' },
-  { id: 14, category: 'Fågel & Veg', name: 'Vegetarisk wok', image: '🥦', sourceUrl: 'https://www.ica.se/recept/wok-med-glasnudlar-och-kal-726415/' },
-  { id: 15, category: 'Fågel & Veg', name: 'Broccolisoppa', soup: true, image: '🥣', sourceUrl: 'https://www.ica.se/recept/busenkel-broccolisoppa-712859/' },
+  { id: 11, category: 'Fågel', name: 'Kycklinggryta', image: '🍗', sourceUrl: 'https://www.ica.se/recept/kycklinggryta-med-curry-och-kokosmjolk-728156/' },
+  { id: 12, category: 'Fågel', name: 'Kycklingnuggets', friday: true, image: '🍗', sourceUrl: 'https://www.ica.se/recept/kycklingnuggets-med-tzatziki-720351/' },
+  { id: 13, category: 'Fågel', name: 'Ugnsbakad kyckling', image: '🍗', sourceUrl: 'https://www.ica.se/recept/ugnsstekt-kyckling-med-klyftpotatis-717111/' },
+  { id: 14, category: 'Veg', name: 'Vegetarisk wok', image: '🥦', sourceUrl: 'https://www.ica.se/recept/wok-med-glasnudlar-och-kal-726415/' },
+  { id: 15, category: 'Veg', name: 'Broccolisoppa', soup: true, image: '🥣', sourceUrl: 'https://www.ica.se/recept/busenkel-broccolisoppa-712859/' },
   { id: 16, category: 'Barnfavoriter', name: 'Pizza', friday: true, image: '🍕', sourceUrl: 'https://www.ica.se/recept/pizza-pronto-713384/' },
   { id: 17, category: 'Barnfavoriter', name: 'Pannkakor', image: '🥞', sourceUrl: 'https://www.ica.se/recept/pannkakor-med-hallon-715087/' },
   { id: 18, category: 'Barnfavoriter', name: 'Makaroner med korv', image: '🍝', sourceUrl: 'https://www.ica.se/recept/falukorv-med-stuvade-makaroner-725260/' },
@@ -83,10 +92,10 @@ const LIBRARY = [
   { id: 29, category: 'Fisk', name: 'Tonfiskpasta', image: '🐟', sourceUrl: 'https://www.ica.se/recept/tonfiskpasta-med-citron-och-basilika-725257/' },
   { id: 30, category: 'Fisk', name: 'Ugnsbakad lax med potatis', image: '🐟', sourceUrl: 'https://www.ica.se/recept/ugnsbakad-lax-med-dillsas-722491/' },
   { id: 31, category: 'Fisk', name: 'Fisksoppa', soup: true, image: '🥣', sourceUrl: 'https://www.ica.se/recept/kramig-fisksoppa-med-potatis-335611/' },
-  { id: 32, category: 'Fågel & Veg', name: 'Flygande Jacob', image: '🍌', sourceUrl: 'https://ingmar.app/blogg/flygande-jacob-och-olika-satt-att-variera-den/' },
-  { id: 33, category: 'Fågel & Veg', name: 'Kycklingfrikadeller', image: '🍗', sourceUrl: 'https://www.ica.se/recept/kycklingfrikadeller-i-tomatsas-715564/' },
-  { id: 34, category: 'Fågel & Veg', name: 'Kycklingschnitzel', image: '🍗', sourceUrl: 'https://www.ica.se/recept/kycklingschnitzel-med-varm-paprika-och-tomatsallad-1142/' },
-  { id: 35, category: 'Fågel & Veg', name: 'Grönsakslasagne', image: '🍝', sourceUrl: 'https://www.ica.se/recept/gronsakslasagne-714072/' },
+  { id: 32, category: 'Fågel', name: 'Flygande Jacob', image: '🍌', sourceUrl: 'https://ingmar.app/blogg/flygande-jacob-och-olika-satt-att-variera-den/' },
+  { id: 33, category: 'Fågel', name: 'Kycklingfrikadeller', image: '🍗', sourceUrl: 'https://www.ica.se/recept/kycklingfrikadeller-i-tomatsas-715564/' },
+  { id: 34, category: 'Fågel', name: 'Kycklingschnitzel', image: '🍗', sourceUrl: 'https://www.ica.se/recept/kycklingschnitzel-med-varm-paprika-och-tomatsallad-1142/' },
+  { id: 35, category: 'Veg', name: 'Grönsakslasagne', image: '🍝', sourceUrl: 'https://www.ica.se/recept/gronsakslasagne-714072/' },
   { id: 36, category: 'Barnfavoriter', name: 'Stuvade makaroner med stekt falukorv', image: '🌭', sourceUrl: 'https://www.bakoglass.se/recept/stuvade-makaroner-med-stekt-falukorv' },
   { id: 37, category: 'Barnfavoriter', name: 'Pasta Carbonara', image: '🍝', sourceUrl: 'https://www.mathem.se/se/recipes/1443-mari-bergman-barnens-pasta-carbonara/' },
   { id: 38, category: 'Barnfavoriter', name: 'Tomatsoppa med grillad ostmacka', soup: true, image: '🍅', sourceUrl: 'https://www.ica.se/recept/enkel-tomatsoppa-722050/' },
@@ -480,7 +489,7 @@ function MealPlanner() {
 
   const combinedLibrary = useMemo(() => {
     const overridden = LIBRARY.map((d) => (dishOverrides[d.id] ? { ...d, ...dishOverrides[d.id] } : d));
-    return [...overridden, ...customDishes];
+    return [...overridden, ...customDishes].map(normalizeDish);
   }, [customDishes, dishOverrides]);
 
   const currentWeekKey = weeks[selectedWeekIdx].key;
